@@ -1,41 +1,27 @@
-// server.ts
+// server.ts - Servidor WebSocket puro
 import { serve } from "https://deno.land/std@0.152.0/http/server.ts";
 
-// Conexões ativas
-const clients = new Map<string, WebSocket>();
+const clients = new Set<WebSocket>();
 
-const handler = async (req: Request): Promise<Response> => {
-  // Upgrade para WebSocket
+serve((req) => {
   if (req.headers.get("upgrade") === "websocket") {
     const { socket, response } = Deno.upgradeWebSocket(req);
-
-    const clientId = crypto.randomUUID();
-    clients.set(clientId, socket);
-
-    socket.onopen = () => {
-      console.log(`Cliente conectado: ${clientId}`);
-    };
-
+    
+    clients.add(socket);
+    
+    socket.onopen = () => console.log("Novo cliente conectado");
     socket.onmessage = (e) => {
-      // Broadcast para todos exceto o remetente
-      clients.forEach((client, id) => {
-        if (id !== clientId && client.readyState === WebSocket.OPEN) {
+      // Retransmite para todos os clientes
+      clients.forEach(client => {
+        if (client !== socket && client.readyState === WebSocket.OPEN) {
           client.send(e.data);
         }
       });
     };
-
-    socket.onclose = () => {
-      clients.delete(clientId);
-      console.log(`Cliente desconectado: ${clientId}`);
-    };
-
+    socket.onclose = () => clients.delete(socket);
+    
     return response;
   }
-
-  // Resposta para requisições HTTP normais
-  return new Response("Servidor WebSocket pronto", { status: 200 });
-};
-
-// Inicie o servidor na porta 8080
-serve(handler, { port: 8080 });
+  
+  return new Response("Servidor WebSocket Deno Puro");
+}, { port: 8000 });
